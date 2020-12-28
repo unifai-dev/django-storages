@@ -8,8 +8,6 @@ matrix:
   include:
     - env: TOXENV=flake8
     - python: 3.5
-      env: TOXENV=integration
-    - python: 3.5
       env: TOXENV=py35-django22
     - python: 3.6
       env: TOXENV=py36-django22
