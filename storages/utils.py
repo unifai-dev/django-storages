@@ -5,7 +5,15 @@ from django.conf import settings
 from django.core.exceptions import (
     ImproperlyConfigured, SuspiciousFileOperation,
 )
-from django.utils.encoding import force_text
+from django.utils.encoding import force_bytes
+
+
+def to_bytes(content):
+    """Wrap Django's force_bytes to pass through bytearrays."""
+    if isinstance(content, bytearray):
+        return content
+
+    return force_bytes(content)
 
 
 def setting(name, default=None):
@@ -54,9 +62,9 @@ def safe_join(base, *paths):
     Paths outside the base path indicate a possible security
     sensitive operation.
     """
-    base_path = force_text(base)
+    base_path = base
     base_path = base_path.rstrip('/')
-    paths = [force_text(p) for p in paths]
+    paths = [p for p in paths]
 
     final_path = base_path + '/'
     for path in paths:
@@ -82,7 +90,7 @@ def check_location(storage):
     if storage.location.startswith('/'):
         correct = storage.location.lstrip('/')
         raise ImproperlyConfigured(
-            "%s.location cannot begin with a leading slash. Found '%s'. Use '%s' instead." % (
+            "{}.location cannot begin with a leading slash. Found '{}'. Use '{}' instead.".format(
                 storage.__class__.__name__,
                 storage.location,
                 correct,
@@ -117,4 +125,4 @@ def get_available_overwrite_name(name, max_length):
             'Please make sure that the corresponding file field '
             'allows sufficient "max_length".' % name
         )
-    return os.path.join(dir_name, "%s%s" % (file_root, file_ext))
+    return os.path.join(dir_name, "{}{}".format(file_root, file_ext))

@@ -1,18 +1,12 @@
-# -*- coding: utf-8 -*-
-
-try:
-    from unittest import mock
-except ImportError:  # Python 3.2 and below
-    import mock
-
 import mimetypes
 from datetime import datetime, timedelta
+from unittest import mock
 
 from django.core.exceptions import ImproperlyConfigured
 from django.core.files.base import ContentFile
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
-from google.cloud.exceptions import Conflict, NotFound
+from google.cloud.exceptions import NotFound
 from google.cloud.storage.blob import Blob
 
 from storages.backends import gcloud
@@ -62,7 +56,7 @@ class GCloudStorageTests(GCloudTestCase):
         self.storage._bucket = mock.MagicMock()
         self.storage._bucket.get_blob.return_value = None
 
-        self.assertRaises(IOError, self.storage.open, self.filename)
+        self.assertRaises(FileNotFoundError, self.storage.open, self.filename)
         self.storage._bucket.get_blob.assert_called_with(self.filename)
 
     def test_open_read_nonexistent_unicode(self):
@@ -71,7 +65,7 @@ class GCloudStorageTests(GCloudTestCase):
         self.storage._bucket = mock.MagicMock()
         self.storage._bucket.get_blob.return_value = None
 
-        self.assertRaises(IOError, self.storage.open, filename)
+        self.assertRaises(FileNotFoundError, self.storage.open, filename)
 
     @mock.patch('storages.backends.gcloud.Blob')
     def test_open_write(self, MockBlob):
@@ -164,26 +158,6 @@ class GCloudStorageTests(GCloudTestCase):
         # exists('') should return True if the bucket exists
         self.assertTrue(self.storage.exists(''))
 
-    def test_exists_no_bucket_auto_create(self):
-        # exists('') should return true when auto_create_bucket is configured
-        # and bucket already exists
-        # exists('') should automatically create the bucket if
-        # auto_create_bucket is configured
-        self.storage.auto_create_bucket = True
-        self.storage._client = mock.MagicMock()
-        self.storage._client.create_bucket.side_effect = Conflict('dang')
-
-        self.assertTrue(self.storage.exists(''))
-
-    def test_exists_bucket_auto_create(self):
-        # exists('') should automatically create the bucket if
-        # auto_create_bucket is configured
-        self.storage.auto_create_bucket = True
-        self.storage._client = mock.MagicMock()
-
-        self.assertTrue(self.storage.exists(''))
-        self.storage._client.create_bucket.assert_called_with(self.bucket_name)
-
     def test_listdir(self):
         file_names = ["some/path/1.txt", "2.txt", "other/path/3.txt", "4.txt"]
         subdir = ""
@@ -209,13 +183,13 @@ class GCloudStorageTests(GCloudTestCase):
         self.assertEqual(len(dirs), 2)
         for directory in ["some", "other"]:
             self.assertTrue(directory in dirs,
-                            """ "%s" not in directory list "%s".""" % (
+                            """ "{}" not in directory list "{}".""".format(
                                 directory, dirs))
 
         self.assertEqual(len(files), 2)
         for filename in ["2.txt", "4.txt"]:
             self.assertTrue(filename in files,
-                            """ "%s" not in file list "%s".""" % (
+                            """ "{}" not in file list "{}".""".format(
                                 filename, files))
 
     def test_listdir_subdir(self):
@@ -242,11 +216,11 @@ class GCloudStorageTests(GCloudTestCase):
 
         self.assertEqual(len(dirs), 1)
         self.assertTrue('path' in dirs,
-                        """ "path" not in directory list "%s".""" % (dirs,))
+                        """ "path" not in directory list "{}".""".format(dirs))
 
         self.assertEqual(len(files), 1)
         self.assertTrue('2.txt' in files,
-                        """ "2.txt" not in files list "%s".""" % (files,))
+                        """ "2.txt" not in files list "{}".""".format(files))
 
     def test_size(self):
         size = 1234
@@ -424,3 +398,30 @@ class GCloudStorageTests(GCloudTestCase):
         )
         with self.assertRaises(ImproperlyConfigured, msg=msg):
             gcloud.GoogleCloudStorage(location='/')
+
+    def test_override_settings(self):
+        with override_settings(GS_LOCATION='foo1'):
+            storage = gcloud.GoogleCloudStorage()
+            self.assertEqual(storage.location, 'foo1')
+        with override_settings(GS_LOCATION='foo2'):
+            storage = gcloud.GoogleCloudStorage()
+            self.assertEqual(storage.location, 'foo2')
+
+    def test_override_class_variable(self):
+        class MyStorage1(gcloud.GoogleCloudStorage):
+            location = 'foo1'
+
+        storage = MyStorage1()
+        self.assertEqual(storage.location, 'foo1')
+
+        class MyStorage2(gcloud.GoogleCloudStorage):
+            location = 'foo2'
+
+        storage = MyStorage2()
+        self.assertEqual(storage.location, 'foo2')
+
+    def test_override_init_argument(self):
+        storage = gcloud.GoogleCloudStorage(location='foo1')
+        self.assertEqual(storage.location, 'foo1')
+        storage = gcloud.GoogleCloudStorage(location='foo2')
+        self.assertEqual(storage.location, 'foo2')

@@ -1,5 +1,6 @@
 import io
 from datetime import datetime
+from unittest import mock
 
 from django.core.exceptions import (
     ImproperlyConfigured, SuspiciousFileOperation,
@@ -10,12 +11,6 @@ from dropbox.files import FileMetadata, FolderMetadata, GetTemporaryLinkResult
 from requests.models import Response
 
 from storages.backends import dropbox
-
-try:
-    from unittest import mock
-except ImportError:  # Python 3.2 and below
-    import mock
-
 
 FILE_DATE = datetime(2015, 8, 24, 15, 6, 41)
 FILE_METADATA_MOCK = mock.MagicMock(spec=FileMetadata)
@@ -80,6 +75,10 @@ class DropBoxTest(TestCase):
                 return_value=FILES_MOCK)
     def test_listdir(self, *args):
         dirs, files = self.storage.listdir('/')
+        dirs2, files2 = self.storage.listdir('')
+        self.assertEqual(dirs, dirs2)
+        self.assertEqual(files2, files2)
+
         self.assertGreater(len(dirs), 0)
         self.assertGreater(len(files), 0)
         self.assertEqual(dirs[0], 'bar')
